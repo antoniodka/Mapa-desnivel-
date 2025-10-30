@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Malla con inclinación exacta o bilineal</title>
+<style>
+  :root{--bg:#0f172a;--panel:#111827;--soft:#1f2937;--ink:#e5e7eb;--muted:#9ca3af;--accent:#38bdf8;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;background:var(--bg);color:var(--ink)}
+  header{padding:14px 18px;border-bottom:1px solid #0b0f19;background:#0b1220}
+  h1{margin:0;font-size:18px}
+  .container{display:grid;grid-template-columns:340px 1fr;gap:16px;padding:14px}
+  @media (max-width:980px){.container{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid #0b0f19;border-radius:12px;padding:12px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+  label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+  input[type="number"], select{width:100%;padding:10px;border-radius:10px;border:1px solid #22324a;background:#0c1424;color:var(--ink)}
+  .btn{appearance:none;border:1px solid #1b2a3f;background:linear-gradient(180deg,#0ea5e9,#0284c7);color:#fff;padding:10px 14px;border-radius:10px;font-weight:600;cursor:pointer}
+  .stage{position:relative;background:var(--soft);border:1px solid #1b2233;border-radius:12px;padding:8px;min-height:480px}
+  .stack{position:relative;width:100%;height:560px}
+  svg{position:absolute;inset:0;display:block;width:100%;height:100%}
+  .pill{background:#0b1220;border:1px solid #182034;padding:6px 10px;border-radius:999px;font-size:12px;color:#cbd5e1}
+  .muted{font-size:12px;color:var(--muted)}
+  .summary{margin-top:10px;font-size:13px;line-height:1.4}
+  .summary span{display:inline-block;margin-right:12px}
+</style>
+</head>
+<body>
+<header><h1>Malla de alturas — modo exacto / bilineal</h1></header>
+
+<div class="container">
+  <section class="card">
+    <div class="row">
+      <div><label>Ancho (m)</label><input id="w" type="number" step="0.01" value="5"></div>
+      <div><label>Alto (m)</label><input id="h" type="number" step="0.01" value="3"></div>
+    </div>
+    <div class="row">
+      <div><label>h₁ (sup izq)</label><input id="h1" type="number" step="0.001" value="0.0"></div>
+      <div><label>h₂ (sup der)</label><input id="h2" type="number" step="0.001" value="0.30"></div>
+    </div>
+    <div class="row">
+      <div><label>h₃ (inf izq)</label><input id="h3" type="number" step="0.001" value="1.40"></div>
+      <div><label>h₄ (inf der)</label><input id="h4" type="number" step="0.001" value="0.30"></div>
+    </div>
+    <div class="row">
+      <div><label>Paso de malla (m)</label><input id="step" type="number" step="0.01" value="1.20"></div>
+      <div><label>Tamaño números (px)</label><input id="fontSize" type="number" step="1" value="8"></div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Modo de cálculo</label>
+        <select id="mode">
+          <option value="exact">Exacto (por inclinación)</option>
+          <option value="bilinear">Bilineal (suavizado)</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:end">
+        <button id="drawBtn" class="btn" style="width:100%">Dibujar</button>
+      </div>
+    </div>
+    <div id="status" class="pill">Estado: —</div>
+  </section>
+
+  <section class="card">
+    <div class="stage">
+      <div class="stack">
+        <svg id="scene" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+    </div>
+    <div id="readout" class="muted">Clic para leer altura…</div>
+    <div id="summary" class="summary"></div>
+  </section>
+</div>
+
+<script>
+(function(){
+  const svg=document.getElementById('scene');
+  const statusEl=document.getElementById('status');
+  const readout=document.getElementById('readout');
+  const summaryEl=document.getElementById('summary');
+  const $=id=>document.getElementById(id);
+  const inputs={W:$('w'),H:$('h'),h1:$('h1'),h2:$('h2'),h3:$('h3'),h4:$('h4'),step:$('step'),font:$('fontSize'),mode:$('mode'),drawBtn:$('drawBtn')};
+
+  function num(v){return parseFloat(String(v??'').replace(',','.'))||0;}
+  function deg(a){return (a*180/Math.PI).toFixed(2);}
+  function colorFor(z){
+    if(z>=1.50)return'lime';
+    if(z>=1.00)return'red';
+    if(z>=0.50)return'dodgerblue';
+    if(z>=0.30)return'orange';
+    if(z>=0.15)return'yellow';
+    return'#e2e8f0';
+  }
+  function setStatus(t){statusEl.textContent='Estado: '+t;}
+
+  function bilinear(x,y,W,H,a,b,c,d){
+    const xi=(W===0)?0:x/W,yi=(H===0)?0:y/H;
+    return a*(1-xi)*(1-yi)+b*xi*(1-yi)+c*(1-xi)*yi+d*xi*yi;
+  }
+
+  function draw(){
+    const Wm=num(inputs.W.value),Hm=num(inputs.H.value);
+    const a=num(inputs.h1.value),b=num(inputs.h2.value),c=num(inputs.h3.value),d=num(inputs.h4.value);
+    const step=Math.max(0.01,num(inputs.step.value));
+    const fsize=Math.max(4,num(inputs.font.value));
+    const mode=inputs.mode.value;
+    svg.innerHTML='';summaryEl.innerHTML='';
+    const box=svg.getBoundingClientRect();const WIDTH=box.width||900,HEIGHT=box.height||560;
+    const PAD=48,innerW=Math.max(1,WIDTH-2*PAD),innerH=Math.max(1,HEIGHT-2*PAD),S=Math.min(innerW/Wm,innerH/Hm);
+    const Rw=Wm*S,Rh=Hm*S,x0=(WIDTH-Rw)/2,y0=(HEIGHT-Rh)/2;
+
+    setStatus(`${mode==='exact'?'Modo Exacto':'Modo Bilineal'} • paso=${step}m • fuente=${fsize}px`);
+
+    const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x',x0);rect.setAttribute('y',y0);
+    rect.setAttribute('width',Rw);rect.setAttribute('height',Rh);
+    rect.setAttribute('fill','none');rect.setAttribute('stroke','#e5e7eb');rect.setAttribute('stroke-width','2');
+    svg.appendChild(rect);
+
+    // puntos de malla
+    const xs=[],ys=[],EPS=1e-9;
+    for(let x=0;x<=Wm+EPS;x+=step)xs.push(Math.min(x,Wm));
+    if(xs[xs.length-1]<Wm-EPS)xs.push(Wm);
+    for(let y=0;y<=Hm+EPS;y+=step)ys.push(Math.min(y,Hm));
+    if(ys[ys.length-1]<Hm-EPS)ys.push(Hm);
+
+    const sepX=Math.max(6,Math.round(0.75*fsize));
+    const sepY=Math.max(6,Math.round(1.10*fsize));
+    const buckets=new Map();
+    const counts={yellow:0,orange:0,blue:0,red:0,lime:0};
+
+    // precálculo de líneas verticales (modo exacto)
+    let leftLine=[],rightLine=[];
+    if(mode==='exact'){
+      for(const y of ys){
+        const hLeft=a+(c-a)*(y/Hm);
+        const hRight=b+(d-b)*(y/Hm);
+        leftLine.push(hLeft);
+        rightLine.push(hRight);
+      }
+    }
+
+    for(let yi=0; yi<ys.length; yi++){
+      for(let xi=0; xi<xs.length; xi++){
+        let z;
+        if(mode==='exact'){
+          const y=ys[yi],x=xs[xi];
+          const hL=leftLine[yi];
+          const hR=rightLine[yi];
+          z=hL+(hR-hL)*(x/Wm);
+        }else{
+          z=bilinear(xs[xi],ys[yi],Wm,Hm,a,b,c,d);
+        }
+        const cx=x0+xs[xi]*S,cy=y0+ys[yi]*S;
+        const ix=Math.round(cx/sepX),iy=Math.round(cy/sepY);
+        const key=ix+'|'+iy;
+        let bkt=buckets.get(key);
+        if(!bkt){bkt={sumZ:0,sumX:0,sumY:0,count:0};buckets.set(key,bkt);}
+        bkt.sumZ+=z;bkt.sumX+=cx;bkt.sumY+=cy;bkt.count++;
+      }
+    }
+
+    for(const [,bkt] of buckets){
+      const avgZ=bkt.sumZ/bkt.count;
+      const tx=bkt.sumX/bkt.count,ty=bkt.sumY/bkt.count;
+      const color=colorFor(avgZ);
+      const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',tx+4);t.setAttribute('y',ty-2);
+      t.setAttribute('font-size',fsize);
+      t.setAttribute('fill',color);
+      t.setAttribute('paint-order','stroke');
+      t.setAttribute('stroke','#0f172a');
+      t.setAttribute('stroke-width','2');
+      t.textContent=avgZ.toFixed(2);
+      svg.appendChild(t);
+      if(color==='yellow')counts.yellow+=bkt.count;
+      else if(color==='orange')counts.orange+=bkt.count;
+      else if(color==='dodgerblue')counts.blue+=bkt.count;
+      else if(color==='red')counts.red+=bkt.count;
+      else if(color==='lime')counts.lime+=bkt.count;
+    }
+
+    // cálculos de pendiente vertical/horizontal
+    const slopeLeft=(c-a)/Hm;
+    const slopeRight=(d-b)/Hm;
+    const slopeTop=(b-a)/Wm;
+    const slopeBottom=(d-c)/Wm;
+    const avgSlope=(slopeLeft+slopeRight+slopeTop+slopeBottom)/4;
+    const toPct=(v)=> (v*100).toFixed(2)+'%';
+    const toDeg=(v)=> deg(Math.atan(v));
+
+    // resumen
+    const parts=[];
+    parts.push(`<div>⛰️ Pendiente izq: ${toPct(slopeLeft)} (${toDeg(slopeLeft)}°) | der: ${toPct(slopeRight)} (${toDeg(slopeRight)}°)</div>`);
+    parts.push(`<div>➡️ Pendiente sup: ${toPct(slopeTop)} | inf: ${toPct(slopeBottom)} | Prom: ${toPct(avgSlope)}</div>`);
+    if(counts.yellow)parts.push(`<span style="color:yellow">${counts.yellow} pts ≥0.15m</span>`);
+    if(counts.orange)parts.push(`<span style="color:orange">${counts.orange} pts ≥0.30m</span>`);
+    if(counts.blue)parts.push(`<span style="color:dodgerblue">${counts.blue} pts ≥0.50m</span>`);
+    if(counts.red)parts.push(`<span style="color:red">${counts.red} pts ≥1.00m</span>`);
+    if(counts.lime)parts.push(`<span style="color:lime">${counts.lime} pts ≥1.50m</span>`);
+    summaryEl.innerHTML=parts.join(' ');
+
+    svg.onpointerdown=(ev)=>{
+      const r=svg.getBoundingClientRect();
+      const px=ev.clientX-r.left,py=ev.clientY-r.top;
+      if(px>=x0&&px<=x0+Rw&&py>=y0&&py<=y0+Rh){
+        const xm=(px-x0)/S,ym=(py-y0)/S;
+        const z=(mode==='exact')
+          ? (a+(c-a)*(ym/Hm)) + ((b+(d-b)*(ym/Hm))-(a+(c-a)*(ym/Hm)))*(xm/Wm)
+          : bilinear(xm,ym,Wm,Hm,a,b,c,d);
+        readout.textContent=`x=${xm.toFixed(2)} y=${ym.toFixed(2)} → altura=${z.toFixed(3)} m`;
+      }
+    };
+  }
+
+  inputs.drawBtn.addEventListener('click',draw);
+  for(const k of ['W','H','h1','h2','h3','h4','step','font','mode'])inputs[k].addEventListener('input',draw);
+  window.addEventListener('resize',draw);
+  window.addEventListener('DOMContentLoaded',()=>setTimeout(draw,0));
+})();
+</script>
+</body>
+</html>
