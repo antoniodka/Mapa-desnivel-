@@ -1,0 +1,8 @@
+{
+  "appId": "com.antonio.perspectivafoto",
+  "appName": "Perspectiva Foto 3D",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
