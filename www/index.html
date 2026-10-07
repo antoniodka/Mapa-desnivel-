@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="theme-color" content="#0b1220" />
+  <title>Perspectiva Foto 3D</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <strong>Perspectiva Foto 3D</strong>
+      <small>Prototipo V0.1</small>
+    </div>
+    <button id="resetBtn" class="ghost">Reiniciar</button>
+  </header>
+
+  <main>
+    <section class="panel controls">
+      <button id="photoBtn" class="primary">1. Cargar foto</button>
+      <input id="photoInput" type="file" accept="image/*" hidden />
+
+      <div class="step">
+        <h3>2. Rectángulo del piso</h3>
+        <p>Toca 4 esquinas en orden: frente-izq, frente-der, fondo-der, fondo-izq.</p>
+        <div class="grid2">
+          <label>Ancho real (m)<input id="floorW" type="number" value="10" step="0.01" min="0.01"></label>
+          <label>Fondo real (m)<input id="floorD" type="number" value="6" step="0.01" min="0.01"></label>
+        </div>
+        <button id="floorModeBtn" class="secondary">Marcar piso</button>
+      </div>
+
+      <div class="step">
+        <h3>3. Dos verticales reales</h3>
+        <p>Marca base y punta del poste 1; luego base y punta del poste 2.</p>
+        <label>Altura real del poste 1 (m)<input id="refHeight" type="number" value="3" step="0.01" min="0.01"></label>
+        <button id="verticalModeBtn" class="secondary">Marcar verticales</button>
+      </div>
+
+      <div class="step">
+        <h3>4. Calibración</h3>
+        <button id="calibrateBtn" class="primary">Calcular perspectiva</button>
+        <div id="calibrationInfo" class="info">Aún sin calibrar.</div>
+      </div>
+
+      <div class="step">
+        <h3>5. Carpa de prueba</h3>
+        <div class="grid2">
+          <label>Ancho (m)<input id="tentW" type="number" value="10" step="0.1"></label>
+          <label>Fondo (m)<input id="tentD" type="number" value="6" step="0.1"></label>
+          <label>Altura lateral (m)<input id="tentH" type="number" value="3" step="0.1"></label>
+          <label>Altura cumbrera (m)<input id="tentRidge" type="number" value="4.2" step="0.1"></label>
+          <label>Giro (°)<input id="tentAngle" type="number" value="0" step="1"></label>
+          <label>Paso cuadrícula (m)<input id="gridStep" type="number" value="1" step="0.1" min="0.1"></label>
+        </div>
+        <button id="placeModeBtn" class="primary">Tocar piso para colocar</button>
+      </div>
+
+      <div class="actions">
+        <button id="undoBtn" class="ghost">Deshacer punto</button>
+        <button id="clearTentBtn" class="ghost">Quitar carpa</button>
+      </div>
+      <div id="status" class="status">Carga una fotografía para empezar.</div>
+    </section>
+
+    <section class="viewer">
+      <canvas id="canvas"></canvas>
+      <div id="emptyState">Carga una foto del lugar.</div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
